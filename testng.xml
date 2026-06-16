@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="Invoice Validation Suite">
+  <!-- Listener is registered via @Listeners on TestNg_existingChrome so it
+       also fires when the class is run directly (Run As > TestNG Test). -->
+  <test name="Extropy Scan_And_Capture">
+    <classes>
+      <class name="Tests.TestNg_existingChrome">
+        <methods>
+          <include name="Scan_And_Capture"/>
+        </methods>
+      </class>
+    </classes>
+  </test>
+</suite>
