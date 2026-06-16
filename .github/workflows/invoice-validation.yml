@@ -23,7 +23,7 @@ jobs:
       # If `mvn` is not recognized, install Maven and add it to PATH (see guide),
       # or replace this with the full path, e.g. "C:\apache-maven\bin\mvn".
       - name: Run TestNG suite
-        shell: powershell
+        shell: cmd
         run: mvn -B -ntp test
 
       # Keep the generated Extent report + updated Excel even though the job
