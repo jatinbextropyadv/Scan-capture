@@ -6,7 +6,7 @@
       <class name="Tests.TestNg_existingChrome">
         <methods>
           <include name="tearDown"/>
-          <include name="Scan_And_Capture"/>
+          <include name="Scan_And_Capture" invocation-numbers="0 1 2 3"/>
           <include name="setUp"/>
         </methods>
       </class> <!-- Tests.TestNg_existingChrome -->

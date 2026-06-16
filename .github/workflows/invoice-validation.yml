@@ -1,0 +1,38 @@
+name: Invoice Validation
+
+# Manual "Run workflow" button in the Actions tab.
+# Uncomment the schedule block to also run automatically — but remember the
+# machine must be ON, the runner running, and Chrome logged in at that time.
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '0 6 * * 1-5'   # 06:00 UTC, Mon–Fri
+
+jobs:
+  run-tests:
+    # Targets YOUR machine. The labels must match the ones you give the runner
+    # during setup (self-hosted is automatic; "windows" is added by default on
+    # a Windows runner).
+    runs-on: [self-hosted, windows]
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      # Assumes Maven + a JDK are already installed and on PATH on your machine.
+      # If `mvn` is not recognized, install Maven and add it to PATH (see guide),
+      # or replace this with the full path, e.g. "C:\apache-maven\bin\mvn".
+      - name: Run TestNG suite
+        shell: powershell
+        run: mvn -B -ntp test
+
+      # Keep the generated Extent report + updated Excel even though the job
+      # ran on your own machine (handy for a download link in the Actions UI).
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            reports/**
+          if-no-files-found: warn

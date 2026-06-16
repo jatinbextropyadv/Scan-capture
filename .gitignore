@@ -1,0 +1,25 @@
+# Build output
+target/
+
+# Generated reports
+reports/
+
+# Eclipse
+.settings/
+.classpath
+.project
+bin/
+
+# OS noise
+Thumbs.db
+.DS_Store
+
+# The self-hosted runner agent (if you put it inside the repo folder — better to
+# install it OUTSIDE the repo, e.g. C:\actions-runner)
+actions-runner/
+
+# Do NOT commit real client data. Keep the data files out of git; they live on
+# the machine at the paths in config.properties (e.g. C:\centers\...).
+*.xlsx
+*.xlsm
+*.docx
