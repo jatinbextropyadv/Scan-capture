@@ -12,7 +12,6 @@ import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.apache.poi.xwpf.usermodel.XWPFTableCell;
 import org.apache.poi.xwpf.usermodel.XWPFTableRow;
-import org.yaml.snakeyaml.tokens.Token;
 
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -637,7 +636,7 @@ public class existingChrome {
             if (nextButton.isVisible() && nextButton.isEnabled()) {
                 System.out.println("Next button is clickable");
             }
-
+ 
             {
                 // Clear results from previous runs so Comments / Expected /
                 // Actual stay aligned and don't accumulate stale entries

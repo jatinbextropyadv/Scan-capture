@@ -12,7 +12,6 @@ import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.apache.poi.xwpf.usermodel.XWPFTableCell;
 import org.apache.poi.xwpf.usermodel.XWPFTableRow;
-import org.yaml.snakeyaml.tokens.Token;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -91,7 +90,7 @@ public class Scan_Capture_with_Pagination {
             // Empty old value is recorded as "Blank" so the cell is never empty
             String actualValue = (Suppliername_old == null || Suppliername_old.trim().isEmpty())
                     ? "Blank"
-                    : Suppliername_old.trim();
+                    : Suppliername_old.trim(); 
 
             if (!existingComment.isEmpty() && !existingComment.equals(newComment)) {
                 commentsCell.setCellValue(existingComment + " ," + newComment); 

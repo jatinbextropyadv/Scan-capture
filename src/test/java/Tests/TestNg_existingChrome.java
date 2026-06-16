@@ -12,7 +12,6 @@ import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.apache.poi.xwpf.usermodel.XWPFTableCell;
 import org.apache.poi.xwpf.usermodel.XWPFTableRow;
-import org.yaml.snakeyaml.tokens.Token;
 
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -280,7 +279,7 @@ public class TestNg_existingChrome {
                 {
                     System.out.println("MATCH FOUND => " + keyword_l);
                     KeywordFoundinCKG = keyword_l;
-                    return KeywordFoundinCKG;
+                    return KeywordFoundinCKG; // RETURNS THE VALUE OF FIELD IF MATCH WITH VALUE IN INVOICE
                 }    
             }
         }
@@ -844,7 +843,7 @@ public class TestNg_existingChrome {
                     } else 
                     {
                         finder = new PdfKeywordValueFinder(latestPdf);
-
+ 
                         if (finder.usedOcr()) {
                             System.out.println("Scanned PDF — values came from OCR");
                             Is_OCR=true;
@@ -1014,6 +1013,7 @@ public class TestNg_existingChrome {
                             // =====================================================
                             //System.out.println("Field Value_Old_foundInInvoice >>>> "+ Suppliername_old +" "+ FieldValue_Old_foundInInvoice);
 
+                             //THIS VAR RETURNS "NOT FOUND" IF KEYWORD IS NOT MATCHED WITH OLD/CAPTURED VALUE OF FIELD IN INVOICE 
                              KeywordFound = Keyword_Found_in_CKG(field, pdfText, ckgSheet, formatter, Suppliername_old);
                              
                              System.out.println("KeywordFound in INvoice "+KeywordFound);
@@ -1027,9 +1027,9 @@ public class TestNg_existingChrome {
 	                        		 Is_keyword_Found=false;
 	                        	 } 
                              
-	                         if (Is_keyword_Found == true) //It means KEYWORD IS PRESENT IN CKGas well as in INVOICE
+	                         if (Is_keyword_Found == true) //It means KEYWORD IS PRESENT IN CKG As well as in INVOICE
 	                         {
-	                        	 //Value of field is compared here..
+	                        	 // Value of field is compared here..
 
 	                        	 if (finder != null) 
                         	 		{
@@ -1052,10 +1052,11 @@ public class TestNg_existingChrome {
 	                                    	System.out.println("Below SIDE !!! "+ below_val);
 	                                    	System.out.println("Near SIDE !!! "+ near_val); 
 	                                    	
+	                                    	//THIS VARIABLE IS TRUE WHEN VALUE OF FIELD PRESENT IN INVOICE 
 	                                    	FieldValue_Old_foundInInvoice = true;
 	                                    }
                         	 		}    
-	                        	 
+	                         	 
                                  		System.out.println("FIELD KEYWORD FOUND IN PDF >>> " + field);
                              
                                  if (FieldValue_Old_foundInInvoice == false) 
@@ -1148,7 +1149,8 @@ public class TestNg_existingChrome {
 	                         {	 System.out.println("FIELDDDDD   "+field);
 
 	                        	 if (!"Supplier name".equals(field)) {//NOT operator is used here because Supplier name keyword has is never present on invoice
-		                        	 newComment="There is no +ve Keyword found in invoice against "+field;
+//		                        	 newComment="There is no +ve Keyword found in invoice against "+field;
+	                        		 newComment="Missing "+field;
 		                        	 Add_comment(newComment,existingComment,existingExpected_value,existingActual_value,commentsCell,expected_valueCell,actual_valueCell, Suppliername_new,Suppliername_old);
 	                        	 }
 	                         }
