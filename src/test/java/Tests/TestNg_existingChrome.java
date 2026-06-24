@@ -27,9 +27,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Listeners(Tests.ExtentTestListener.class)
-public class TestNg_existingChrome {
+public class TestNG_existingChrome {
 
     // Excel file path 
     String excelPath = ConfigReader.get("centers.excel.path");
@@ -89,7 +91,7 @@ public class TestNg_existingChrome {
         if (text == null) {
             return "";
         }
-
+ 
         return text
                 .replace("\r", " ")
                 .replace("\n", " ")
@@ -128,81 +130,98 @@ public class TestNg_existingChrome {
             } else if (existingActual_value.isEmpty()) {
                 actual_valueCell.setCellValue(actualValue);
             }
-	}
+	} 
 
     public static boolean isFieldMandatory(
-            String docPath,
-            String fieldName) throws Exception {
+        String docPath,
+        String fieldName) throws Exception {
+    	String searchField ="";
+    	
+    if(fieldName.equalsIgnoreCase("Po number")) 
+    {
+    	
+    	searchField = normalize("Purchase Order Number");
+    }
+    else {
+    	searchField = normalize(fieldName);
+    }
+    	
 
-        String searchField = normalize(fieldName);
+    // Label is the text between "field name" and "field type" in a header row.
+    Pattern labelPattern = Pattern.compile("field name (.*?) field type");
+    Pattern checkPattern = Pattern.compile("checked[^>]*val=\"([01])\"");
 
-        try (FileInputStream fis = new FileInputStream(docPath);
-             XWPFDocument doc = new XWPFDocument(fis)) {
+    try (FileInputStream fis = new FileInputStream(docPath);
+         XWPFDocument doc = new XWPFDocument(fis)) {
 
-            int tableNo = 0;
+        int tableNo = 0;
 
-            for (XWPFTable table : doc.getTables()) {
+        for (XWPFTable table : doc.getTables()) {
+            tableNo++;
+            int rowNo = 0;
 
-                tableNo++;
-                int rowNo = 0;
+            for (XWPFTableRow row : table.getRows()) {
+                rowNo++;
 
-                for (XWPFTableRow row : table.getRows()) {
+                StringBuilder rowTextSb = new StringBuilder();
+                Boolean mandatoryChecked = null;   // state of the cell labelled "Mandatory"
 
-                    rowNo++;
+                for (XWPFTableCell cell : row.getTableCells()) {
 
-                    List<XWPFTableCell> cells = row.getTableCells();
+                    String cellXml  = cell.getCTTc().xmlText();
+                    String cellText = normalize(cellXml.replaceAll("<[^>]+>", " "));
+                    rowTextSb.append(cellText).append(' ');
 
-                    boolean fieldFound = false;
-                    boolean hasCheckbox = false;
-                    Boolean checkboxValue = null;
-
-                    for (XWPFTableCell cell : cells) {
-
-                        String cellText = normalize(cell.getText());
-
-                        if (cellText.equals(searchField) || cellText.contains(searchField)) {
-                            fieldFound = true;
-                        }
-
-                        if (cell.getText().contains("☒")) {
-                            hasCheckbox = true;
-                            checkboxValue = true;
-                        }
-
-                        if (cell.getText().contains("☐")) {
-                            hasCheckbox = true;
-                            checkboxValue = false;
-                        }
-                    }
-
-                    if (fieldFound) {
-
-                        System.out.println("\n================================");
-                        System.out.println("Field Found : " + fieldName);
-                        System.out.println("Table : " + tableNo + ", Row : " + rowNo);
-
-                        for (int i = 0; i < cells.size(); i++) {
-                            //System.out.println("Cell " + (i + 1) + " = [" + cells.get(i).getText() + "]");
-                        }
-
-                        if (hasCheckbox == true && checkboxValue == true) {
-//                            System.out.println(
-//                                    "fieldFound=" + fieldFound +
-//                                    ", hasCheckbox=" + hasCheckbox +
-//                                    ", checkboxValue=" + checkboxValue);
-                            return true;
-                        }
-
-                        System.out.println("Field matched but row has no checkbox. Continuing search...");
+                    // Only the checkbox whose label is "Mandatory" (i.e. "<cb> Mandatory")
+                    if (cellText.contains("mandatory")) {
+                        Matcher cbm = checkPattern.matcher(cellXml);
+                        if (cbm.find()) {
+                            mandatoryChecked = "1".equals(cbm.group(1));
+                        } else if (cellXml.indexOf('☒') >= 0) {
+                            mandatoryChecked = true;
+                        } else if (cellXml.indexOf('☐') >= 0) {
+                            mandatoryChecked = false;
+                        }  
                     }
                 }
-            }
+
+                String rowText = rowTextSb.toString();
+
+                // Skip anything that isn't a real field header row.
+                // rowText is normalized (lowercase), so use lowercase literals.
+                if (!rowText.contains("field name") || !rowText.contains("mandatory")) {
+                    continue;
+                }
+
+                // Extract this header's field label
+                Matcher lm = labelPattern.matcher(rowText);
+                if (!lm.find()) continue;
+                String label = lm.group(1).trim();
+                if (label.isEmpty()) continue;
+
+                // Match the requested field against the header label
+//                boolean match = searchField.equals(label) || searchField.contains(label) || label.contains(searchField);
+                
+                label=label.toLowerCase();
+                searchField=searchField.toLowerCase();
+                
+                //System.out.println("Label "+label + " searchField " + searchField);
+                boolean match = label.equalsIgnoreCase(searchField);
+                
+                if (match) {  
+                    boolean result = Boolean.TRUE.equals(mandatoryChecked);
+                    System.out.println("Field '" + fieldName + "' -> header '" + label
+                            + "' (Table " + tableNo + ", Row " + rowNo + ") -> mandatory = " + result);
+                    return result;
+                }
+            }  
         }
-
-        System.out.println("Field not found or checkbox not found.");
-        return false;
     }
-
+  
+    System.out.println("Field '" + fieldName + "' not found among DCG header fields -> mandatory = false");
+    return false;
+}
+     
     private static String Keyword_Found_in_CKG(
             String searchText,
             String pdfText,
@@ -215,21 +234,31 @@ public class TestNg_existingChrome {
        // Find partial text in Column B
         for (int i = 0; i <= sheet.getLastRowNum(); i++) {
 
-            Row row = sheet.getRow(i);
+            Row row = sheet.getRow(i); 
 
             if (row == null) {
-                continue;
+                continue; 
             }
-
+ 
             String colB = formatter.formatCellValue(row.getCell(1)).trim();
 
+            if (!colB.isEmpty()) {
+            	//System.out.println("colB "+ colB +" - searchText - "+searchText);
+
+            	
             
-            
-            if (!colB.isEmpty() && colB.equalsIgnoreCase(searchText)) {
-                startRow = i+1;// DELIBERATELY DO THIS plus ONE +1 EARLIER IT WASI ONLY
-               System.out.println("STARTROW "+ startRow);
-               System.out.println("colB "+colB);
-               break;
+            	boolean pass = colB.toLowerCase().contains(searchText.toLowerCase())
+            	            || searchText.toLowerCase().contains(colB.toLowerCase());
+
+            	
+//                if (colB.contains(searchText)) {
+   
+            	if(pass) {
+                    startRow = i+1;// DELIBERATELY DO THIS plus ONE +1 EARLIER IT WASI ONLY
+                    //System.out.println("STARTROW " + startRow);
+                    //System.out.println("colB " + colB);
+                    break;
+                }
             }
         }
 
@@ -240,22 +269,22 @@ public class TestNg_existingChrome {
         	return "Not Found";
         }
 
-       // boolean keywordFound = false;
+       // boolean keywordFound = false;  
 
         // Iterate until blank row
-        for (int i = startRow; i <= sheet.getLastRowNum(); i++) {
+        for (int i= startRow; i<= sheet.getLastRowNum(); i++) {
 
-            Row row = sheet.getRow(i);
+            Row row2 = sheet.getRow(i);
 
-            if (row == null) {
+            if (row2 == null) {
                 break;
             }
-            
+ 
             //Here values in columns C,D,E ARE stored in variables of type String
             
-            String c = formatter.formatCellValue(row.getCell(2)).trim();
-            String d = formatter.formatCellValue(row.getCell(3)).trim();
-            String e = formatter.formatCellValue(row.getCell(4)).trim();
+            String c = formatter.formatCellValue(row2.getCell(2)).trim();
+            String d = formatter.formatCellValue(row2.getCell(3)).trim();
+            String e = formatter.formatCellValue(row2.getCell(4)).trim();
 
             // Stop when C, D, E all blank
             if (c.isEmpty() && d.isEmpty() && e.isEmpty()) {
@@ -270,22 +299,26 @@ public class TestNg_existingChrome {
                 if (keyword.isEmpty()) {
                     continue;
                 }
-               
+  
+                 
                 String str = pdfText.toLowerCase();
                 
                 String keyword_l = keyword.toLowerCase();
 
+                System.out.println("keyword_l >>> "+ keyword_l);
+                
                 if (str.contains(keyword_l)) 
                 {
-                    System.out.println("MATCH FOUND => " + keyword_l);
+                    System.out.println("MATCH FOUND in CKG/Invoice => " + keyword_l);
                     KeywordFoundinCKG = keyword_l;
                     return KeywordFoundinCKG; // RETURNS THE VALUE OF FIELD IF MATCH WITH VALUE IN INVOICE
-                }    
+                }
             }
         }
-		return KeywordFoundinCKG="Not Found"; 
+        
+        return KeywordFoundinCKG = "Not Found";
     }
-
+    
     public static boolean compareFieldWithCKG(String popupField, String pdfText) throws Exception {
 
         String ckgPath = ConfigReader.get("ckg.excel.path");
@@ -458,11 +491,28 @@ public class TestNg_existingChrome {
         // Get existing browser context
         context = browser.contexts().get(0);
 
-        if (context.pages().size() > 0) {
-            page = context.pages().get(0);
-        } else {
-            page = context.newPage();
+        // Show every open tab so we can see which one we end up driving
+        System.out.println("Open tabs in this context (" + context.pages().size() + "):");
+        for (Page p : context.pages()) {
+            System.out.println("   - [" + (p.isClosed() ? "CLOSED" : "open") + "] " + p.url());
         }
+
+        // Pick the Basware tab explicitly — NOT just pages().get(0), which may be
+        // a chrome:// / new-tab / unrelated tab that closes when navigated.
+        page = null;
+        for (Page p : context.pages()) {
+            if (!p.isClosed() && p.url().contains("basware.com")) {
+                page = p;
+                break;
+            }
+        }
+        if (page == null) {
+            // No Basware tab found — open a fresh one in the same (logged-in) context
+            page = context.newPage();
+            System.out.println("No Basware tab found — opened a new tab.");
+        }
+        page.bringToFront();
+        System.out.println("Driving tab: " + page.url());
 
         // Read first sheet
         sheet = workbook.getSheetAt(0);
@@ -626,13 +676,33 @@ public class TestNg_existingChrome {
 
         boolean FieldValue_Old_foundInInvoice = false;
         boolean Field_Name_FoundInInvoice = false;
+        boolean FieldValue_New_FoundInInvoice=false;
+        
         String pdfText = "";
         boolean Is_keyword_Found=false;
-        String KeywordFound="";
+        String KeywordFound_In_Ckg_and_Invoice="";
 
         File latestPdf=null;
 
         try {
+
+            // The page is shared across all ids. If a previous id's navigation
+            // closed/detached the tab, re-acquire a live Basware tab so this id
+            // doesn't fail instantly (and cascade into every later id failing).
+            if (page == null || page.isClosed()) {
+                System.out.println("Driving tab was closed — re-acquiring a live tab.");
+                page = null;
+                for (Page p : context.pages()) {
+                    if (!p.isClosed() && p.url().contains("basware.com")) {
+                        page = p;
+                        break;
+                    }
+                }
+                if (page == null) {
+                    page = context.newPage();
+                }
+                page.bringToFront();
+            }
 
             // Locate this id's row so results can be written back to it
             Row row = findRowById(id);
@@ -644,7 +714,7 @@ public class TestNg_existingChrome {
             Locator nextButton = page.locator("//div[@class='pt-btn-group pt-next-prev-page-btn-group']/button[@title='Next']");
 
             if (nextButton.isVisible() && nextButton.isEnabled()) {
-                System.out.println("Next button is clickable");
+                System.out.println("Next button is clickable"); 
             }
 
             {
@@ -845,15 +915,15 @@ public class TestNg_existingChrome {
                         finder = new PdfKeywordValueFinder(latestPdf);
  
                         if (finder.usedOcr()) {
-                            System.out.println("Scanned PDF — values came from OCR");
+                            //System.out.println("Scanned PDF — values came from OCR");
                             Is_OCR=true;
                         } else {
-                            System.out.println("Text-based PDF — exact values");
+                            //System.out.println("Text-based PDF — exact values");
                             Is_OCR=false;
                         }
                     }
                     
-                    System.out.println("Is_OCR "+Is_OCR);
+                    //System.out.println("Is_OCR "+Is_OCR);
                     
                     if (!latestPdf.exists()) {
                         System.out.println("PDF file not found after save. Skipping ID: " + id);
@@ -881,9 +951,26 @@ public class TestNg_existingChrome {
                 // =====================================================
                 
                 page.waitForLoadState(LoadState.DOMCONTENTLOADED);
-                page.waitForSelector("select[data-t-id='history-filter']");
-                page.selectOption("select[data-t-id='history-filter']", "0");
-                page.waitForSelector("//button[@data-t-rel='history-dialog-link-button']");  //REMOVED this line for running code using PAGINATION
+                // Non-fatal: history-filter may be absent / render differently on some invoices.
+                // A hard 30s throw here kills the whole id before any Excel write happens.
+                try {
+                    page.waitForSelector("select[data-t-id='history-filter']",
+                            new Page.WaitForSelectorOptions().setTimeout(10000));
+                    page.selectOption("select[data-t-id='history-filter']", "0");
+                } catch (Exception historyEx) {
+                    System.out.println("id " + id + " -> history-filter not usable (" + historyEx.getMessage()
+                            + ") — continuing without filter.");
+                }
+                // Non-fatal readiness guard: this button is absent on some invoices/tenants (e.g. JLG, pagination).
+                // Wait briefly and continue regardless — "View changes" handling below tolerates its absence.
+                try {
+                    page.waitForSelector("//button[@data-t-rel='history-dialog-link-button']",
+                            new Page.WaitForSelectorOptions()
+                                    .setState(WaitForSelectorState.VISIBLE)
+                                    .setTimeout(5000));  
+                } catch (TimeoutError ignored) {
+                    System.out.println("history-dialog-link-button not present — continuing.");
+                }
 
                 // =====================================================
                 // STEP 5: OPEN CKG WORKBOOK ONCE PER INVOICE
@@ -893,20 +980,20 @@ public class TestNg_existingChrome {
                 Workbook ckgWorkbook = new XSSFWorkbook(ckgFis);
                 Sheet ckgSheet = ckgWorkbook.getSheet("English");
                 DataFormatter formatter = new DataFormatter();
-
+;
                 // =====================================================
                 // STEP 6: ITERATE "VIEW CHANGES" BUTTONS
                 // =====================================================
                 Locator viewChangesLinks = page.locator("//button[text()=' View changes ']");
                 int totalLinks = viewChangesLinks.count();
-                System.out.println("Total View changes links: " + totalLinks);
+                logStep("id " + id + " -> 'View changes' links found: " + totalLinks);
 
                 if(totalLinks>0)
                 {
                 for (int j = 0; j < totalLinks; j++) {
 
                     // Close any open modal before clicking
-                    Locator modal = page.locator(".pt-modal-wrapper");
+                    Locator modal = page.locator(".pt-modal-wrapper"); 
                     if (modal.isVisible()) {
                         page.keyboard().press("Escape");
                     }
@@ -928,6 +1015,11 @@ public class TestNg_existingChrome {
 
                     HeaderDataLookup lookup = new HeaderDataLookup();
 
+                    System.out.println("id " + id + " | link " + (j + 1)
+                            + " -> Header-data spans: " + headerDataSpan.count()
+                            + " | No-changes: " + txt_Nochanges.count()
+                            + " | Coding spans: " + txt_coding.count());
+
                     // Process only if Header data tab found
                     if (headerDataSpan.count() > 1) {
 
@@ -939,14 +1031,15 @@ public class TestNg_existingChrome {
                         	Suppliername_new="";
                         	Suppliername_old="";
                         	
-                            boolean is_mandatory = isFieldMandatory(
-                                    ConfigReader.get("dcg.docx.path"), field);
+                            boolean is_mandatory = isFieldMandatory(ConfigReader.get("dcg.docx.path"), field);
 
-                            System.out.println("IS_MANDATORY " + is_mandatory + " | Field: " + field);
-
-                          if (is_mandatory == true) {
-                        	//check in DCG that Keyword/field is mandatory or NOT
-                                // Get old and new values from lookup
+                            // System.out.println("IS_MANDATORY " + is_mandatory + " | Field: " + field);
+                            // field is mandatory in DCG
+                            
+                     if (is_mandatory == true) {
+                        	
+                    	 //check in DCG that Keyword/field is mandatory or NOT
+                           // Get old and new values from lookup
                         	  
                                 Field_values = lookup.getValues(field);
                                 Old_value = Field_values[0];
@@ -962,11 +1055,15 @@ public class TestNg_existingChrome {
                                 Field_Name_FoundInInvoice = pdfText
                                         .toLowerCase()
                                         .contains(field.trim().toLowerCase());
+                                
+                                FieldValue_New_FoundInInvoice = pdfText
+                                        .toLowerCase()
+                                        .contains(Suppliername_new.trim().toLowerCase());
 
-                               // System.out.println("Field text/name Found In PDF: " + Field_Name_FoundInInvoice + " | " + field);
+                               System.out.println("Field text/name Found In PDF: " + Suppliername_new + " | " + field +" | "+ FieldValue_New_FoundInInvoice);
                                 
 
-                             // =====================================================
+                             // ===================================================== 
                              // FIND COLUMN INDEXES FROM HEADER ROW
                              // =====================================================
                              for (Cell headerCell : headerRow) {
@@ -1014,11 +1111,17 @@ public class TestNg_existingChrome {
                             //System.out.println("Field Value_Old_foundInInvoice >>>> "+ Suppliername_old +" "+ FieldValue_Old_foundInInvoice);
 
                              //THIS VAR RETURNS "NOT FOUND" IF KEYWORD IS NOT MATCHED WITH OLD/CAPTURED VALUE OF FIELD IN INVOICE 
-                             KeywordFound = Keyword_Found_in_CKG(field, pdfText, ckgSheet, formatter, Suppliername_old);
+                             if(field=="PO number")
+                             {
+                                 KeywordFound_In_Ckg_and_Invoice = Keyword_Found_in_CKG("Purchase Order Number", pdfText, ckgSheet, formatter, Suppliername_old);                            	 
+                             }
+                             else {
+                                 KeywordFound_In_Ckg_and_Invoice = Keyword_Found_in_CKG(field, pdfText, ckgSheet, formatter, Suppliername_old);                            	 
+                             }
                              
-                             System.out.println("KeywordFound in INvoice "+KeywordFound);
+                             System.out.println("KeywordFound in INvoice "+KeywordFound_In_Ckg_and_Invoice);
                              
-                             if(!"Not Found".equalsIgnoreCase(KeywordFound)) 
+                             if(!"Not Found".equalsIgnoreCase(KeywordFound_In_Ckg_and_Invoice)) 
 	                             {
 	                            	 Is_keyword_Found=true;
 	                             }
@@ -1030,22 +1133,22 @@ public class TestNg_existingChrome {
 	                         if (Is_keyword_Found == true) //It means KEYWORD IS PRESENT IN CKG As well as in INVOICE
 	                         {
 	                        	 // Value of field is compared here..
-
+   
 	                        	 if (finder != null) 
                         	 		{
-	                        		 	System.out.println("It finds the VALUE corresponds to Keyword found in CKG "+ KeywordFound);
+	                        		 	System.out.println("It finds the VALUE corresponds to Keyword found in CKG "+ KeywordFound_In_Ckg_and_Invoice);
 	                        		 	
-	                                    String right_val = finder.findValueRightOf(KeywordFound);
-//	                                    String below_val = finder.findValueBelow(KeywordFound);
-	                                    String below_val = finder.findValueInColumnBelow(KeywordFound);  // → "75.00"
-	                                    String near_val = finder.findValueNear(KeywordFound);
+	                                    String right_val = finder.findValueRightOf(KeywordFound_In_Ckg_and_Invoice);
+//	                                    String below_val = finder.findValueBelow(KeywordFound_In_CKG_&_Invoice );
+	                                    String below_val = finder.findValueInColumnBelow(KeywordFound_In_Ckg_and_Invoice);  // → "75.00"
+	                                    String near_val = finder.findValueNear(KeywordFound_In_Ckg_and_Invoice);
 	                                    System.out.println("right_val === "+right_val);
 	                                    System.out.println("below_val === "+below_val);
 	                                    System.out.println("near_val === "+near_val);
 	                                    
 	                                    if(right_val == Suppliername_old || below_val==Suppliername_old || near_val==Suppliername_old) 
 	                                    {
-	                                    	System.out.println("It finds the VALUE corresponds to Keyword found in CKG "+ KeywordFound);
+	                                    	System.out.println("It finds the VALUE corresponds to Keyword found in CKG "+ KeywordFound_In_Ckg_and_Invoice);
 	                                    	//this variable finds/returns the field value in invoice in right,Bottom,near 
 	                                    	//by the field keyword
 	                                    	System.out.println("RIGHT SIDE !!! "+ right_val);
@@ -1055,11 +1158,11 @@ public class TestNg_existingChrome {
 	                                    	//THIS VARIABLE IS TRUE WHEN VALUE OF FIELD PRESENT IN INVOICE 
 	                                    	FieldValue_Old_foundInInvoice = true;
 	                                    }
-                        	 		}    
+                        	 		}     
 	                         	 
                                  		System.out.println("FIELD KEYWORD FOUND IN PDF >>> " + field);
                              
-                                 if (FieldValue_Old_foundInInvoice == false) 
+                                 if (FieldValue_Old_foundInInvoice == false) // this means old value is not in invoice
 	                                {                                
 	                                	if("Supplier name".equalsIgnoreCase(field))
 	                                	{
@@ -1067,21 +1170,22 @@ public class TestNg_existingChrome {
 	                                		{
 	                                			newComment = "Multiple supplier found in extracts";
 	                                			Add_comment(newComment,existingComment,existingExpected_value,existingActual_value,commentsCell,expected_valueCell,actual_valueCell, Suppliername_new,Suppliername_old);
-	                                		}
-	                                		else 
+	                                		} 
+	                                		else    
 	                                		{
 	                                    		if ("-".equals(Suppliername_old) || Suppliername_old.contains("NON")) 
 	                                    		{   
 	                                                    newComment = field + " not captured from invoice";
 	                                                    Add_comment(newComment,existingComment,existingExpected_value,existingActual_value,commentsCell,expected_valueCell,actual_valueCell, Suppliername_new,Suppliername_old);
 	                                            }
-	                                    		else {
+	                                    		else 
+	                                    		{
 	                                                    newComment = "Wrong "+ field + " captured from invoice";
 	                                                    Add_comment(newComment,existingComment,existingExpected_value,existingActual_value,commentsCell,expected_valueCell,actual_valueCell, Suppliername_new,Suppliername_old);
-	                                    			} 
+	                                    		} 
 	                                    	}
 	                                	}	//else if field name is NOT EQUAL TO SUPPLIER / OTHER THEN SUPPLIER
-	                                	else 
+	                                	else   
 		                                	{
 		                                		if ("-".equals(Suppliername_old) || Suppliername_old.contains("NON")) 
 		                                		{
@@ -1092,8 +1196,8 @@ public class TestNg_existingChrome {
 		                                         }
 		                                		else {// This cond. is that if Field name is not found in invoice
 			                                		
-			                                				newComment = "Wrong "+field +" captured from invoice";
-			                                                Add_comment(newComment,existingComment,existingExpected_value,existingActual_value,commentsCell,expected_valueCell,actual_valueCell, Suppliername_new,Suppliername_old);		
+		                                				newComment = "Wrong "+field +" captured from invoice";
+		                                                Add_comment(newComment,existingComment,existingExpected_value,existingActual_value,commentsCell,expected_valueCell,actual_valueCell, Suppliername_new,Suppliername_old);		
 		                                			}
 		                            		}
 		                                	System.out.println(
@@ -1103,72 +1207,49 @@ public class TestNg_existingChrome {
 		                                		    " | COMMENT = " + newComment
 		                                		);
 	                            	}
-                                else 
+                                else
+                                	//I guess that this code is unreachable because if old value is captured right 
+                                	// then
                                 {
-                                	if("Supplier name".equals(field))
-                                	{
-                                		if ("-".equals(Suppliername_old) || Suppliername_old.contains("NON"))  
-                                    		{
-                                                    newComment = field + " not captured from invoice";
-                                                    Add_comment(newComment,existingComment,existingExpected_value,existingActual_value,commentsCell,expected_valueCell,actual_valueCell, Suppliername_new,Suppliername_old);    
-                                            }
-                                    		else {// This cond. is that if Field name is not found in invoice
-
-                                                    newComment = "Wrong "+ field + " captured from invoice";
-                                                    Add_comment(newComment,existingComment,existingExpected_value,existingActual_value,commentsCell,expected_valueCell,actual_valueCell, Suppliername_new,Suppliername_old);
-                                    		}
-
-                                	}	//else if field name is EQUAL TO SUPPLIER / OTHER THEN SUPPLIER
-                                	else 
-                                	{
-                                		if ("-".equals(Suppliername_old) || Suppliername_old.contains("NON"))  
-                                		{
-                                                newComment = field + " not captured from invoice";
-                                                Add_comment(newComment,existingComment,existingExpected_value,existingActual_value,commentsCell,expected_valueCell,actual_valueCell, Suppliername_new,Suppliername_old);
-                                             
-                                        }
-                                		else {// This cond. is that if Field name is not found in invoice
-                                			
-                                                newComment = "Wrong "+ field + " captured from invoice";
-                                                Add_comment(newComment,existingComment,existingExpected_value,existingActual_value,commentsCell,expected_valueCell,actual_valueCell, Suppliername_new,Suppliername_old);
-                                            } 
-                                		
-                                	}
-                                	
+                                	                                	
                                 	System.out.println(
                                 		    "FIELD_2 = " + field +
                                 		    " | OLD = " + Suppliername_old +
                                 		    " | NEW = " + Suppliername_new +
                                 		    " | COMMENT = " + newComment
                                 		);
-                                }
+                                }  
 
-	                         }//closing braces for Keyword found in CKG
+	                         }//closing braces for Keyword found in CKG 
 	                         
-	                         else 
-	                         {	 System.out.println("FIELDDDDD   "+field);
-
-	                        	 if (!"Supplier name".equals(field)) {//NOT operator is used here because Supplier name keyword has is never present on invoice
-//		                        	 newComment="There is no +ve Keyword found in invoice against "+field;
-	                        		 newComment="Missing "+field;
-		                        	 Add_comment(newComment,existingComment,existingExpected_value,existingActual_value,commentsCell,expected_valueCell,actual_valueCell, Suppliername_new,Suppliername_old);
-	                        	 }
+	                         else // keyword is neither in CKG NOr in Invoice
+	                        	 
+	                         {	 
+//	                         		if(FieldValue_New_FoundInInvoice==false)
+//	                         		{
+//	                         			newComment="wrong " + field + " captured from invoice";
+//			                        	 Add_comment(newComment,existingComment,existingExpected_value,existingActual_value,commentsCell,expected_valueCell,actual_valueCell, Suppliername_new,Suppliername_old);		                         				                         			
+//	                         		}
+//	                         		else {
+	                         			newComment = field + " NOT captured from invoice";
+			                        	 Add_comment(newComment,existingComment,existingExpected_value,existingActual_value,commentsCell,expected_valueCell,actual_valueCell, Suppliername_new,Suppliername_old);
+//	                         		}
 	                         }
-                                		System.out.println("NEW COMMENT " + newComment);
+                               // System.out.println("NEW COMMENT " + newComment);
 
                              // Record the per-field outcome in the Extent report
                              if (ExtentTestListener.getTest() != null) {
                                  if (newComment != null && !newComment.trim().isEmpty()) {
                                      ExtentTestListener.getTest().warning(
-                                         "Field [" + field + "] — " + newComment
-                                         + " | Expected: " + Suppliername_new 
-                                         + " | Actual: " + Suppliername_old);
+                                         "[" + field + "] — " + newComment
+                                         + " | <b>"+"Expected: " + Suppliername_new 
+                                         + " | Captured: " + Suppliername_old+"</b>");  
                                  } else {
                                      ExtentTestListener.getTest().pass(
-                                         "Field [" + field + "] validated OK");
+                                         "[" + field + "] validated OK");
                                  }
                              }
-                        	 } 
+                	 } 
                         
                             // Save updated Excel after each header data popup
                           FileOutputStream fos = new FileOutputStream(excelPath);
