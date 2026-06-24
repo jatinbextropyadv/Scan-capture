@@ -15,9 +15,21 @@ jobs:
     # a Windows runner).
     runs-on: windows-latest   # was: [self-hosted, windows]
 
+    # steps:
+    #   - name: Check out the repo
+    #     uses: actions/checkout@v4
+
     steps:
-      - name: Check out the repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Run TestNG suite
+        run: mvn test
 
       # Assumes Maven + a JDK are already installed and on PATH on your machine.
       # If `mvn` is not recognized, install Maven and add it to PATH (see guide),
