@@ -1,26 +1,14 @@
 name: Invoice Validation
 
-# Manual "Run workflow" button in the Actions tab.
-# Uncomment the schedule block to also run automatically — but remember the
-# machine must be ON, the runner running, and Chrome logged in at that time.
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: '0 6 * * 1-5'   # 06:00 UTC, Mon–Fri
 
 jobs:
   run-tests:
-    # Targets YOUR machine. The labels must match the ones you give the runner
-    # during setup (self-hosted is automatic; "windows" is added by default on
-    # a Windows runner).
-    runs-on: windows-latest   # was: [self-hosted, windows]
-
-    # steps:
-    #   - name: Check out the repo
-    #     uses: actions/checkout@v4
+    runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -28,25 +16,13 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      # - name: Run TestNG suite
-        # run: mvn test
-
-      # Assumes Maven + a JDK are already installed and on PATH on your machine.
-      # If `mvn` is not recognized, install Maven and add it to PATH (see guide),
-      # or replace this with the full path, e.g. "C:\apache-maven\bin\mvn".
-      # - name: Run TestNG suite
-        # shell: cmd
-        # run: mvn -B -ntp test
-
       - name: Run TestNG suite
         shell: cmd
         env:
           APP_SECRET_KEY: ${{ secrets.APP_SECRET_KEY }}
         run: mvn -B -ntp test
 
-
-      # Keep the generated Extent report + updated Excel even though the job
-      # ran on your own machine (handy for a download link in the Actions UI).
+      # Extent report + updated Excel
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -56,4 +32,12 @@ jobs:
             reports/**
           if-no-files-found: warn
 
-      
+      # THE IMPORTANT ONE: surefire results contain the actual failure reason
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            target/surefire-reports/**
+          if-no-files-found: warn
