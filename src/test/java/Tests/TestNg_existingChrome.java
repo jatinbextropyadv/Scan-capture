@@ -494,9 +494,7 @@ public class TestNg_existingChrome {
         
         
         page.navigate("https://jlg.p2p.basware.com/Portal/FormsLogin/Default.aspx?forms=1&returnUrl=%2fap%2f&tid=jlg&rt=1&tz=330&ln=en-US&lnf=en-US");
-        
-//        page.getByLabel("Username").fill("U324458");
-//        page.getByLabel("Password").fill("Smartjumanji@25");
+
         
         page.getByLabel("Username").fill(ConfigReader.get("app.username"));
         page.getByLabel("Password").fill(Crypto.decrypt(ConfigReader.get("app.password.enc")));
