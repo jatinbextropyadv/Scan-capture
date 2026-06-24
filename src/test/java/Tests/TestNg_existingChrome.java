@@ -31,7 +31,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Listeners(Tests.ExtentTestListener.class)
-public class TestNG_existingChrome {
+public class TestNg_existingChrome {
 
     // Excel file path 
     String excelPath = ConfigReader.get("centers.excel.path");
