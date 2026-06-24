@@ -13,7 +13,7 @@ jobs:
     # Targets YOUR machine. The labels must match the ones you give the runner
     # during setup (self-hosted is automatic; "windows" is added by default on
     # a Windows runner).
-    runs-on: [self-hosted, windows]
+    runs-on: windows-latest   # was: [self-hosted, windows]
 
     steps:
       - name: Check out the repo
