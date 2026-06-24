@@ -28,15 +28,22 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Run TestNG suite
-        run: mvn test
+      # - name: Run TestNG suite
+        # run: mvn test
 
       # Assumes Maven + a JDK are already installed and on PATH on your machine.
       # If `mvn` is not recognized, install Maven and add it to PATH (see guide),
       # or replace this with the full path, e.g. "C:\apache-maven\bin\mvn".
+      # - name: Run TestNG suite
+        # shell: cmd
+        # run: mvn -B -ntp test
+
       - name: Run TestNG suite
         shell: cmd
+        env:
+          APP_SECRET_KEY: ${{ secrets.APP_SECRET_KEY }}
         run: mvn -B -ntp test
+
 
       # Keep the generated Extent report + updated Excel even though the job
       # ran on your own machine (handy for a download link in the Actions UI).
