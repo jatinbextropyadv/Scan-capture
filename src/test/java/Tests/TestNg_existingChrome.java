@@ -483,13 +483,33 @@ public class TestNg_existingChrome {
         fis.close(); // XSSFWorkbook is fully in-memory, so we can save back to the same path later
 
         // Connect to already opened Chrome browser
-        browser = playwright.chromium().connectOverCDP("http://127.0.0.1:9224");
+//        browser = playwright.chromium().connectOverCDP("http://127.0.0.1:9224");
         System.out.println("Connected to existing Chrome browser");
+        
+        browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(false));
+        context = browser.newContext();
+
+        page = context.newPage();
+        
+        
+        
+        page.navigate("https://jlg.p2p.basware.com/Portal/FormsLogin/Default.aspx?forms=1&returnUrl=%2fap%2f&tid=jlg&rt=1&tz=330&ln=en-US&lnf=en-US");
+        
+//        page.getByLabel("Username").fill("U324458");
+//        page.getByLabel("Password").fill("Smartjumanji@25");
+        
+        page.getByLabel("Username").fill(ConfigReader.get("app.username"));
+        page.getByLabel("Password").fill(Crypto.decrypt(ConfigReader.get("app.password.enc")));
+        
+        
+        page.locator("//input[@id='btnLogin']").click();
+        
+        
 
         Thread.sleep(5000);
 
-        // Get existing browser context
-        context = browser.contexts().get(0);
+        // Get existing browser context 
+        //context = browser.contexts().get(0); removed for Login page
 
         // Show every open tab so we can see which one we end up driving
         System.out.println("Open tabs in this context (" + context.pages().size() + "):");
