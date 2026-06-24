@@ -486,7 +486,7 @@ public class TestNg_existingChrome {
 //        browser = playwright.chromium().connectOverCDP("http://127.0.0.1:9224");
         System.out.println("Connected to existing Chrome browser");
         
-        browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(false));
+        browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
         context = browser.newContext();
 
         page = context.newPage();
