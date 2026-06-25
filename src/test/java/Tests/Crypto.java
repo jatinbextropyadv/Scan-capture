@@ -45,9 +45,32 @@ public final class Crypto {
                 "Environment variable " + KEY_ENV + " is not set. "
                 + "Set it before running (it is the decryption key).");
         }
+        // Trim so a stray trailing space/newline in the GitHub secret (the most
+        // common cause of "Tag mismatch") does NOT change the derived key.
+        passphrase = passphrase.trim();
         byte[] hash = MessageDigest.getInstance("SHA-256")
                 .digest(passphrase.getBytes(StandardCharsets.UTF_8));
         return new SecretKeySpec(hash, "AES");
+    }
+
+    /**
+     * A short, NON-SECRET fingerprint of the current APP_SECRET_KEY (first 4
+     * bytes of its SHA-256). Lets you compare the key on GitHub vs the key you
+     * encrypted with — WITHOUT revealing the key. If two environments print the
+     * same fingerprint, they have the same key.
+     */
+    public static String keyFingerprint() {
+        try {
+            String passphrase = System.getenv(KEY_ENV);
+            if (passphrase == null || passphrase.trim().isEmpty()) return "NO_KEY_SET";
+            byte[] hash = MessageDigest.getInstance("SHA-256")
+                    .digest(passphrase.trim().getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 4; i++) sb.append(String.format("%02x", hash[i]));
+            return sb.toString();
+        } catch (Exception e) {
+            return "ERR";
+        }
     }
 
     /** Encrypts plain text -> Base64(iv || ciphertext+tag). */
@@ -85,7 +108,8 @@ public final class Crypto {
             cipher.init(Cipher.DECRYPT_MODE, key(), new GCMParameterSpec(TAG_LENGTH, iv));
             return new String(cipher.doFinal(cipherText), StandardCharsets.UTF_8);
         } catch (Exception e) {
-            throw new RuntimeException("Decryption failed (wrong APP_SECRET_KEY?)", e);
+            throw new RuntimeException("Decryption failed (wrong APP_SECRET_KEY?) "
+                    + "keyFingerprint=" + keyFingerprint(), e);
         }
     }
 
