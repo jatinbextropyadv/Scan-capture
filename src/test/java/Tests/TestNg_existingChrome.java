@@ -22,6 +22,8 @@ import org.testng.annotations.Test;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -137,16 +139,32 @@ public class TestNg_existingChrome {
         String fieldName) throws Exception {
     	String searchField ="";
     	
-    if(fieldName.equalsIgnoreCase("Po number")) 
-    {
-    	
-    	searchField = normalize("Purchase Order Number");
-    }
-    else {
+    	fieldName=fieldName.toLowerCase();
     	searchField = normalize(fieldName);
-    }
+    	
+    	switch (fieldName) { 
+    	case "po number" :
+    		searchField = normalize("Purchase Order Number");
+    	
+    	case "supplier name" : 
+    		searchField = normalize("Supplier");
+    		
+    	case "purchase order numbers":
+    		searchField = normalize("Purchase Order Number");
+    	}	
+    
     	
 
+//    if(fieldName.equalsIgnoreCase("Supplier name")) 
+//    {
+//    	
+//    	searchField = normalize("Supplier");
+//    }
+//    else {
+//    	searchField = normalize(fieldName);
+//    }
+
+    
     // Label is the text between "field name" and "field type" in a header row.
     Pattern labelPattern = Pattern.compile("field name (.*?) field type");
     Pattern checkPattern = Pattern.compile("checked[^>]*val=\"([01])\"");
@@ -187,6 +205,8 @@ public class TestNg_existingChrome {
 
                 String rowText = rowTextSb.toString();
 
+                //System.out.println("ROW TEXT = "+rowText);
+                
                 // Skip anything that isn't a real field header row.
                 // rowText is normalized (lowercase), so use lowercase literals.
                 if (!rowText.contains("field name") || !rowText.contains("mandatory")) {
@@ -218,7 +238,7 @@ public class TestNg_existingChrome {
         }
     }
   
-    System.out.println("Field '" + fieldName + "' not found among DCG header fields -> mandatory = false");
+//    System.out.println("Field '" + fieldName + "' not found among DCG header fields -> mandatory = false");
     return false;
 }
      
@@ -305,11 +325,11 @@ public class TestNg_existingChrome {
                 
                 String keyword_l = keyword.toLowerCase();
 
-                System.out.println("keyword_l >>> "+ keyword_l);
+                //System.out.println("keyword_l >>> "+ keyword_l);
                 
                 if (str.contains(keyword_l)) 
                 {
-                    System.out.println("MATCH FOUND in CKG/Invoice => " + keyword_l);
+//                    System.out.println("MATCH FOUND in CKG/Invoice => " + keyword_l);
                     KeywordFoundinCKG = keyword_l;
                     return KeywordFoundinCKG; // RETURNS THE VALUE OF FIELD IF MATCH WITH VALUE IN INVOICE
                 }
@@ -318,95 +338,7 @@ public class TestNg_existingChrome {
         
         return KeywordFoundinCKG = "Not Found";
     }
-    
-    public static boolean compareFieldWithCKG(String popupField, String pdfText) throws Exception {
 
-        String ckgPath = ConfigReader.get("ckg.excel.path");
-
-        try (FileInputStream fis = new FileInputStream(ckgPath);
-             Workbook wb = new XSSFWorkbook(fis)) {
-
-            Sheet sheet = wb.getSheetAt(0);
-            DataFormatter formatter = new DataFormatter();
-
-            boolean fieldMatched = false;
-            boolean allKeywordsMatched = true;
-
-            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
-
-                Row row = sheet.getRow(i);
-
-                if (row == null) {
-                    continue;
-                }
-
-                String fieldName = formatter.formatCellValue(row.getCell(1)).trim();
-
-                if (!fieldMatched) {
-
-                    if (!fieldName.isEmpty() && fieldName.equalsIgnoreCase(popupField.trim())) {
-
-                        fieldMatched = true;
-                        System.out.println("Matched Field >>> " + fieldName);
-                        allKeywordsMatched = processKeywords(row, formatter, pdfText);
-                    }
-                } else {
-
-                    if (!fieldName.isEmpty()) {
-                        System.out.println("Next Field Encountered >>> " + fieldName);
-                        break;
-                    }
-
-                    if (!processKeywords(row, formatter, pdfText)) {
-                        allKeywordsMatched = false;
-                    }
-                }
-            }
-
-            return fieldMatched && allKeywordsMatched;
-        }
-    }
-
-    private static boolean processKeywords(
-            Row row,
-            DataFormatter formatter,
-            String pdfText) {
-
-        boolean allKeywordsFound = true;
-
-        // Columns C, D, E
-        for (int col = 2; col <= 4; col++) {
-
-            String keyword = formatter.formatCellValue(row.getCell(col)).trim();
-
-            if (keyword.isEmpty()) {
-                continue;
-            }
-
-           // System.out.println("Checking Keyword >>> " + keyword);
-
-            if (pdfText.toLowerCase().contains(keyword.toLowerCase())) {
-               // System.out.println("Keyword FOUND in PDF >>> " + keyword);
-            } else {
-              //  System.out.println("Keyword NOT FOUND in PDF >>> " + keyword);
-                allKeywordsFound = false;
-            }
-        }
-
-        return allKeywordsFound;
-    }
-
-    public static void checkKeywordInPdf(String keyword, String pdfText) {
-
-        if (keyword == null || keyword.trim().isEmpty())
-            return;
-
-        if (pdfText.toLowerCase().contains(keyword.toLowerCase())) {
-           // System.out.println("Keyword [" + keyword + "] present in PDF");
-        } else {
-          //  System.out.println("Keyword [" + keyword + "] NOT present in PDF");
-        }
-    }
 
     public static int getSupplierCountInExtracts(String supplierName) throws Exception {
 
@@ -456,7 +388,7 @@ public class TestNg_existingChrome {
                         .formatCellValue(cell)
                         .replaceAll("\\s+", " ")
                         .trim();
-
+ 
                 if (excelSupplier.equalsIgnoreCase(searchSupplier)) {
                     count++;
                 }
@@ -472,7 +404,7 @@ public class TestNg_existingChrome {
     /**
      * Opens the Excel workbook (kept in memory for the whole run), resolves the
      * required column indexes, and connects to the already-running Chrome.
-     */
+     */  
     @BeforeClass
     public void setUp() throws Exception {
 
@@ -482,43 +414,77 @@ public class TestNg_existingChrome {
         workbook = new XSSFWorkbook(fis);
         fis.close(); // XSSFWorkbook is fully in-memory, so we can save back to the same path later
 
+        // Verify Chrome is already running with remote debugging before connecting
+        String cdpUrl = ConfigReader.get("cdp.url");
+        try {
+            HttpURLConnection conn = (HttpURLConnection) new URL(cdpUrl + "/json/version").openConnection();
+            conn.setConnectTimeout(3000);
+            conn.setReadTimeout(3000);
+            conn.setRequestMethod("GET");
+            int responseCode = conn.getResponseCode();
+            conn.disconnect();  
+            if (responseCode != 200) {
+                String alertMsg =
+                    "ALERT: Chrome is not open with client credentials!\n\n" +
+                    "Port 9224 responded but is not a Chrome debugging session.\n" +
+                    "Please launch Chrome with remote debugging enabled:\n" +
+                    "  chrome.exe --remote-debugging-port=9224 --user-data-dir=<profile-path>\n\n" +
+                    "Then log in to the application and re-run the tests.";
+                javax.swing.JOptionPane.showMessageDialog(null, alertMsg,
+                    "Chrome Not Running", javax.swing.JOptionPane.ERROR_MESSAGE);
+                throw new RuntimeException(alertMsg);
+            }
+        } catch (java.net.ConnectException | java.net.SocketTimeoutException e) {
+            String alertMsg =
+                "ALERT: Chrome is not open with client credentials!\n\n" +
+                "No browser found listening on port 9224.\n" +
+                "Please launch Chrome with remote debugging enabled:\n" +
+                "  chrome.exe --remote-debugging-port=9224 --user-data-dir=<profile-path>\n\n" +
+                "Then log in to the application and re-run the tests.";
+            javax.swing.JOptionPane.showMessageDialog(null, alertMsg,
+                "Chrome Not Running", javax.swing.JOptionPane.ERROR_MESSAGE);
+            throw new RuntimeException(alertMsg, e);
+        }
+
         // Connect to already opened Chrome browser
-//        browser = playwright.chromium().connectOverCDP("http://127.0.0.1:9224");
-        System.out.println("Connected to existing Chrome browser");
+        browser = playwright.chromium().connectOverCDP(cdpUrl);
+         
+//        System.out.println("Connected to existing Chrome browser");
         
-        browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(false));
-        context = browser.newContext();
+//        browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(false));
+//        context = browser.newContext();
+//
+//        page = context.newPage();
+        
+      
+//        page.navigate(ConfigReader.get("page.url"));
+//        
+//        
+//        page.getByLabel("Username").fill(ConfigReader.get("app.username"));
+        
+//        System.out.println("decrypt >>> "+Crypto.decrypt(ConfigReader.get("app.password.enc")));
+//        page.getByLabel("Password").fill(Crypto.decrypt(ConfigReader.get("app.password.enc")));
+//        
+//        
+//        page.locator("//input[@id='btnLogin']").click();
+        
+        
 
-        page = context.newPage();
-        
-        
-        
-        page.navigate("https://jlg.p2p.basware.com/Portal/FormsLogin/Default.aspx?forms=1&returnUrl=%2fap%2f&tid=jlg&rt=1&tz=330&ln=en-US&lnf=en-US");
-
-        
-        page.getByLabel("Username").fill(ConfigReader.get("app.username"));
-        page.getByLabel("Password").fill(Crypto.decrypt(ConfigReader.get("app.password.enc")));
-        
-        
-        page.locator("//input[@id='btnLogin']").click();
-        
-        
-
-        Thread.sleep(5000);
+        Thread.sleep(2000);
 
         // Get existing browser context 
-        //context = browser.contexts().get(0); removed for Login page
+        context = browser.contexts().get(0);// removed for Login page
 
         // Show every open tab so we can see which one we end up driving
-        System.out.println("Open tabs in this context (" + context.pages().size() + "):");
+        //System.out.println("Open tabs in this context (" + context.pages().size() + "):");
         for (Page p : context.pages()) {
-            System.out.println("   - [" + (p.isClosed() ? "CLOSED" : "open") + "] " + p.url());
+          //  System.out.println("   - [" + (p.isClosed() ? "CLOSED" : "open") + "] " + p.url());
         }
 
         // Pick the Basware tab explicitly — NOT just pages().get(0), which may be
         // a chrome:// / new-tab / unrelated tab that closes when navigated.
         page = null;
-        for (Page p : context.pages()) {
+        for (Page p : context.pages()) { 
             if (!p.isClosed() && p.url().contains("basware.com")) {
                 page = p;
                 break;
@@ -530,7 +496,7 @@ public class TestNg_existingChrome {
             System.out.println("No Basware tab found — opened a new tab.");
         }
         page.bringToFront();
-        System.out.println("Driving tab: " + page.url());
+//        System.out.println("Driving tab: " + page.url());
 
         // Read first sheet
         sheet = workbook.getSheetAt(0);
@@ -583,7 +549,7 @@ public class TestNg_existingChrome {
             headerRow.createCell(actualValueColumnIndex).setCellValue("Actual value");
         }
     }
-
+ 
     /**
      * Reads every non-empty id from the Excel sheet and supplies them one-by-one
      * to the test method. Opens its own stream so it does not depend on @BeforeClass
@@ -631,7 +597,7 @@ public class TestNg_existingChrome {
 
     /** Prints to console AND records the step in the Extent report node for this test. */
     private void logStep(String message) {
-        System.out.println(message);
+//        System.out.println(message);
         if (ExtentTestListener.getTest() != null) {
             ExtentTestListener.getTest().info(message);
         }
@@ -665,7 +631,7 @@ public class TestNg_existingChrome {
                 workbook.write(fos);
             }
             workbook.close();
-            System.out.println("Workbook saved and closed.");
+//            System.out.println("Workbook saved and closed.");
         }
 
         if (browser != null) {
@@ -725,14 +691,14 @@ public class TestNg_existingChrome {
             // Locate this id's row so results can be written back to it
             Row row = findRowById(id);
             if (row == null) {
-                System.out.println("Row not found for id: " + id);
+//                System.out.println("Row not found for id: " + id);
                 return;
             }
 
             Locator nextButton = page.locator("//div[@class='pt-btn-group pt-next-prev-page-btn-group']/button[@title='Next']");
 
             if (nextButton.isVisible() && nextButton.isEnabled()) {
-                System.out.println("Next button is clickable"); 
+//                System.out.println("Next button is clickable"); 
             }
 
             {
@@ -750,7 +716,7 @@ public class TestNg_existingChrome {
 
                 // Navigate to invoice page
                 page.navigate(finalUrl);  //HIDE this line If i am running thru PAGINATION in AP
-                Thread.sleep(4000);
+                Thread.sleep(2000);
 
                 // =====================================================
                 // STEP 1: CLICK "Images" TAB TO LOAD PDF VIEWER
@@ -776,7 +742,7 @@ public class TestNg_existingChrome {
                             System.out.println("Clicked Images tab (alternate locator).");
                         } else {
                             System.out.println("Images tab not found — PDF viewer may already be loaded.");
-                        }
+                        } 
                     }
 
                     // Wait for PDF viewer toolbar to fully load
@@ -844,7 +810,7 @@ public class TestNg_existingChrome {
                         System.out.println("No download event captured: " + dlEx.getMessage());
 
                         // The click already happened — a new tab may have opened instead
-                        Thread.sleep(3000);
+                        Thread.sleep(2000);
                         if (context.pages().size() > pagesBefore) {
                             pdfPage = context.pages().get(context.pages().size() - 1);
                             System.out.println("New tab detected instead of download event.");
@@ -1078,7 +1044,7 @@ public class TestNg_existingChrome {
                                         .toLowerCase()
                                         .contains(Suppliername_new.trim().toLowerCase());
 
-                               System.out.println("Field text/name Found In PDF: " + Suppliername_new + " | " + field +" | "+ FieldValue_New_FoundInInvoice);
+                               System.out.println("Field text/name New Found In PDF: " + Suppliername_new + " | " + field +" | "+ FieldValue_New_FoundInInvoice);
                                 
 
                              // ===================================================== 
@@ -1154,7 +1120,7 @@ public class TestNg_existingChrome {
    
 	                        	 if (finder != null) 
                         	 		{
-	                        		 	System.out.println("It finds the VALUE corresponds to Keyword found in CKG "+ KeywordFound_In_Ckg_and_Invoice);
+	                        		 	System.out.println("It finds the VALUE corresponding to Keyword found in CKG "+ KeywordFound_In_Ckg_and_Invoice);
 	                        		 	
 	                                    String right_val = finder.findValueRightOf(KeywordFound_In_Ckg_and_Invoice);
 //	                                    String below_val = finder.findValueBelow(KeywordFound_In_CKG_&_Invoice );
@@ -1177,7 +1143,7 @@ public class TestNg_existingChrome {
 	                                    	FieldValue_Old_foundInInvoice = true;
 	                                    }
                         	 		}     
-	                         	 
+	                         	  
                                  		System.out.println("FIELD KEYWORD FOUND IN PDF >>> " + field);
                              
                                  if (FieldValue_Old_foundInInvoice == false) // this means old value is not in invoice
@@ -1240,7 +1206,7 @@ public class TestNg_existingChrome {
 
 	                         }//closing braces for Keyword found in CKG 
 	                         
-	                         else // keyword is neither in CKG NOr in Invoice
+	                         else // keyword is not in CKG Or in Invoice
 	                        	 
 	                         {	 
 //	                         		if(FieldValue_New_FoundInInvoice==false)
